@@ -7,13 +7,19 @@ license = "MIT"
 repository = "https://github.com/tempoxyz/incur-rs"
 
 [dependencies]
+clap = { version = "4", optional = true }
 incur-derive = { path = "incur-derive" }
 rmcp = { version = "0.16", features = ["server", "transport-io"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "process"] }
 
 [dev-dependencies]
+clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util"] }
+
+[features]
+default = []
+clap = ["dep:clap"]
