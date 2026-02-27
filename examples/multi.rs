@@ -37,9 +37,12 @@ async fn main() {
                 }),
         );
 
+    // Config waterfall: my-cli.toml → MYCLI_* env vars → CLI args
     Cli::create("my-cli")
         .description("My CLI")
         .version("1.0.0")
+        .config_file("my-cli.toml")
+        .env_prefix("MYCLI")
         .command(
             "status",
             CommandBuilder::new()
