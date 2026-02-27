@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use serde_json::Value;
 
+use crate::config;
 use crate::cta::{self, CtaBlock};
 use crate::error::IncurError;
 use crate::formatter::{self, Format};
@@ -164,6 +165,8 @@ pub struct Cli {
     order: Vec<String>,
     root_command: Option<Command>,
     default_format: Format,
+    config_file: Option<String>,
+    env_prefix: Option<String>,
 }
 
 impl Cli {
@@ -177,6 +180,8 @@ impl Cli {
             order: Vec::new(),
             root_command: None,
             default_format: Format::Toon,
+            config_file: None,
+            env_prefix: None,
         }
     }
 
@@ -195,6 +200,20 @@ impl Cli {
     /// Sets the default output format.
     pub fn format(mut self, fmt: Format) -> Self {
         self.default_format = fmt;
+        self
+    }
+
+    /// Sets the TOML config filename to search for (e.g., `"myapp.toml"`).
+    /// The file is discovered by walking up from the current directory.
+    pub fn config_file(mut self, name: impl Into<String>) -> Self {
+        self.config_file = Some(name.into());
+        self
+    }
+
+    /// Sets the environment variable prefix (e.g., `"MYAPP"`).
+    /// Env vars like `MYAPP_TIMEOUT` will map to option `timeout`.
+    pub fn env_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.env_prefix = Some(prefix.into());
         self
     }
 
@@ -491,8 +510,23 @@ impl Cli {
             }
         };
 
+        // Apply config waterfall: TOML → env → CLI (CLI wins during parsing)
+        let effective_options = {
+            let toml_vals = if let Some(ref file) = self.config_file {
+                config::load_toml(file)
+            } else {
+                config::ConfigValues::default()
+            };
+            let env_vals = if self.env_prefix.is_some() {
+                config::load_env(self.env_prefix.as_deref().unwrap())
+            } else {
+                config::ConfigValues::default()
+            };
+            config::apply_waterfall(&cmd.options, &toml_vals, &env_vals)
+        };
+
         // Parse args and options
-        let parsed = match parser::parse(&rest, &cmd.args, &cmd.options) {
+        let parsed = match parser::parse(&rest, &cmd.args, &effective_options) {
             Ok(p) => p,
             Err(e) => {
                 if human {

@@ -40,6 +40,7 @@ struct FieldAttrs {
     default: Option<String>,
     description: Option<String>,
     enum_values: Vec<String>,
+    env: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -106,6 +107,7 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
         default: None,
         description: None,
         enum_values: Vec::new(),
+        env: None,
     };
 
     // Extract doc comments as description fallback.
@@ -167,6 +169,12 @@ fn parse_field_attrs(field: &syn::Field) -> syn::Result<FieldAttrs> {
                     if let Lit::Str(s) = lit {
                         attrs.enum_values.push(s.value());
                     }
+                }
+            } else if meta.path.is_ident("env") {
+                let value = meta.value()?;
+                let lit: Lit = value.parse()?;
+                if let Lit::Str(s) = lit {
+                    attrs.env = Some(s.value());
                 }
             }
             Ok(())
@@ -339,6 +347,9 @@ fn impl_incur(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             if !field_attrs.enum_values.is_empty() {
                 let vals = &field_attrs.enum_values;
                 builder = quote! { #builder.enum_values([#(#vals),*]) };
+            }
+            if let Some(env_name) = &field_attrs.env {
+                builder = quote! { #builder.env(#env_name) };
             }
             opt_tokens.push(builder);
 

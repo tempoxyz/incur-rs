@@ -67,6 +67,7 @@ pub struct Opt {
     pub required: bool,
     pub default: Option<String>,
     pub enum_values: Vec<String>,
+    pub env: Option<String>,
 }
 
 impl Opt {
@@ -79,6 +80,7 @@ impl Opt {
             required: false,
             default: None,
             enum_values: Vec::new(),
+            env: None,
         }
     }
 
@@ -124,6 +126,11 @@ impl Opt {
 
     pub fn enum_values(mut self, values: impl IntoIterator<Item = impl Into<String>>) -> Self {
         self.enum_values = values.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn env(mut self, name: impl Into<String>) -> Self {
+        self.env = Some(name.into());
         self
     }
 }
