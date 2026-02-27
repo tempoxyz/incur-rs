@@ -25,13 +25,17 @@
 
 pub mod cli;
 pub mod cta;
+pub mod derive_support;
 pub mod error;
 pub mod formatter;
 pub mod help;
+pub(crate) mod mcp;
 pub mod parser;
 
 pub use cli::{Cli, CommandBuilder, CommandContext, CommandResult, RunFn};
 pub use cta::Cta;
+pub use derive_support::IncurCommand;
 pub use error::{IncurError, IncurResult};
 pub use formatter::Format;
+pub use incur_derive::Incur;
 pub use parser::{Arg, Opt};

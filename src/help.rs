@@ -1,4 +1,4 @@
-use crate::parser::{to_kebab, Arg, Opt};
+use crate::parser::{Arg, Opt, to_kebab};
 
 /// Formats help text for a router CLI (command list).
 pub fn format_root(name: &str, opts: &FormatRootOptions) -> String {
@@ -22,7 +22,12 @@ pub fn format_root(name: &str, opts: &FormatRootOptions) -> String {
     if !opts.commands.is_empty() {
         lines.push(String::new());
         lines.push("Commands:".into());
-        let max_len = opts.commands.iter().map(|c| c.name.len()).max().unwrap_or(0);
+        let max_len = opts
+            .commands
+            .iter()
+            .map(|c| c.name.len())
+            .max()
+            .unwrap_or(0);
         for cmd in &opts.commands {
             if let Some(desc) = &cmd.description {
                 let padding = " ".repeat(max_len - cmd.name.len());
@@ -162,7 +167,12 @@ pub fn format_command(name: &str, opts: &FormatCommandOptions) -> String {
     if !opts.subcommands.is_empty() {
         lines.push(String::new());
         lines.push("Commands:".into());
-        let max_len = opts.subcommands.iter().map(|c| c.name.len()).max().unwrap_or(0);
+        let max_len = opts
+            .subcommands
+            .iter()
+            .map(|c| c.name.len())
+            .max()
+            .unwrap_or(0);
         for cmd in &opts.subcommands {
             if let Some(desc) = &cmd.description {
                 let padding = " ".repeat(max_len - cmd.name.len());
