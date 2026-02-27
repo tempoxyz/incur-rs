@@ -26,6 +26,9 @@
 pub mod cli;
 pub mod config;
 pub mod cta;
+
+// Re-export figment2 so consumers can compose their own Figment if needed.
+pub use figment;
 pub mod derive_support;
 pub mod error;
 pub mod formatter;

@@ -510,20 +510,12 @@ impl Cli {
             }
         };
 
-        // Apply config waterfall: TOML → env → CLI (CLI wins during parsing)
-        let effective_options = {
-            let toml_vals = if let Some(ref file) = self.config_file {
-                config::load_toml(file)
-            } else {
-                config::ConfigValues::default()
-            };
-            let env_vals = if self.env_prefix.is_some() {
-                config::load_env(self.env_prefix.as_deref().unwrap())
-            } else {
-                config::ConfigValues::default()
-            };
-            config::apply_waterfall(&cmd.options, &toml_vals, &env_vals)
-        };
+        // Apply config waterfall: code defaults → TOML → env → CLI (CLI wins during parsing)
+        let effective_options = config::apply_waterfall(
+            &cmd.options,
+            self.config_file.as_deref(),
+            self.env_prefix.as_deref(),
+        );
 
         // Parse args and options
         let parsed = match parser::parse(&rest, &cmd.args, &effective_options) {
