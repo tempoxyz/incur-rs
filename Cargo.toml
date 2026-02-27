@@ -1,0 +1,17 @@
+[package]
+name = "incur"
+version = "0.1.0"
+edition = "2024"
+description = "CLI framework for agents and humans — Rust port of wevm/incur"
+license = "MIT"
+repository = "https://github.com/tempoxyz/incur-rs"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util"] }
