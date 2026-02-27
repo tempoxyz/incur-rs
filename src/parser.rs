@@ -216,8 +216,6 @@ pub fn to_kebab(s: &str) -> String {
     result
 }
 
-
-
 /// Parses argv tokens against arg and option definitions.
 pub fn parse(
     argv: &[String],
@@ -241,7 +239,10 @@ pub fn parse(
     }
 
     let resolve_name = |raw: &str| -> String {
-        kebab_to_name.get(raw).cloned().unwrap_or_else(|| raw.to_string())
+        kebab_to_name
+            .get(raw)
+            .cloned()
+            .unwrap_or_else(|| raw.to_string())
     };
 
     let mut positionals: Vec<String> = Vec::new();
@@ -281,7 +282,10 @@ pub fn parse(
                         message: format!("Unknown flag: {token}"),
                     });
                 }
-                if opt_by_name.get(&name).is_some_and(|o| o.opt_type == OptType::Bool) {
+                if opt_by_name
+                    .get(&name)
+                    .is_some_and(|o| o.opt_type == OptType::Bool)
+                {
                     raw_options.insert(name, Value::Bool(true));
                     i += 1;
                 } else {
@@ -297,14 +301,22 @@ pub fn parse(
             let name = short_to_name.get(&c).ok_or_else(|| IncurError::Parse {
                 message: format!("Unknown flag: {token}"),
             })?;
-            if opt_by_name.get(name.as_str()).is_some_and(|o| o.opt_type == OptType::Bool) {
+            if opt_by_name
+                .get(name.as_str())
+                .is_some_and(|o| o.opt_type == OptType::Bool)
+            {
                 raw_options.insert(name.clone(), Value::Bool(true));
                 i += 1;
             } else {
                 let value = argv.get(i + 1).ok_or_else(|| IncurError::Parse {
                     message: format!("Missing value for flag: {token}"),
                 })?;
-                set_option(&mut raw_options, name, value, opt_by_name.get(name.as_str()));
+                set_option(
+                    &mut raw_options,
+                    name,
+                    value,
+                    opt_by_name.get(name.as_str()),
+                );
                 i += 2;
             }
         } else {
@@ -515,12 +527,7 @@ mod tests {
 
     #[test]
     fn parse_array_option() {
-        let argv: Vec<String> = vec![
-            "--tag".into(),
-            "a".into(),
-            "--tag".into(),
-            "b".into(),
-        ];
+        let argv: Vec<String> = vec!["--tag".into(), "a".into(), "--tag".into(), "b".into()];
         let opts = vec![Opt::new("tag").array()];
         let result = parse(&argv, &[], &opts).unwrap();
         match result.options.get("tag").unwrap() {

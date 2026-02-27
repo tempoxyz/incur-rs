@@ -42,7 +42,10 @@ pub fn format(value: &Value, fmt: Format) -> String {
     }
     match fmt {
         Format::Json => serde_json::to_string_pretty(value).unwrap_or_default(),
-        Format::Yaml => serde_yaml::to_string(value).unwrap_or_default().trim_end().to_string(),
+        Format::Yaml => serde_yaml::to_string(value)
+            .unwrap_or_default()
+            .trim_end()
+            .to_string(),
         Format::Md => format_markdown(value, &[]),
         Format::Jsonl => serde_json::to_string(value).unwrap_or_default(),
         Format::Toon => format_toon(value, 0),
@@ -125,11 +128,7 @@ fn format_toon_table(arr: &[Value]) -> String {
         }
     }
 
-    let header = format!(
-        "[{}]{{{}}}:",
-        arr.len(),
-        keys.join(",")
-    );
+    let header = format!("[{}]{{{}}}:", arr.len(), keys.join(","));
     format!("{header}\n{}", lines.join("\n"))
 }
 
@@ -203,11 +202,7 @@ fn format_markdown(value: &Value, path: &[&str]) -> String {
                         format!("## {}\n\n{s}", child_path.join("."))
                     } else if let Value::Array(arr) = val {
                         if is_array_of_objects(arr) {
-                            format!(
-                                "## {}\n\n{}",
-                                child_path.join("."),
-                                columnar_table(arr)
-                            )
+                            format!("## {}\n\n{}", child_path.join("."), columnar_table(arr))
                         } else {
                             format_markdown(val, &child_path)
                         }
@@ -249,7 +244,13 @@ fn kv_table(obj: &serde_json::Map<String, Value>) -> String {
             (k.clone(), s)
         })
         .collect();
-    render_table(&["Key", "Value"], &entries.iter().map(|(k, v)| vec![k.as_str(), v.as_str()]).collect::<Vec<_>>())
+    render_table(
+        &["Key", "Value"],
+        &entries
+            .iter()
+            .map(|(k, v)| vec![k.as_str(), v.as_str()])
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn columnar_table(items: &[Value]) -> String {
@@ -280,7 +281,10 @@ fn columnar_table(items: &[Value]) -> String {
         })
         .collect();
 
-    let row_refs: Vec<Vec<&str>> = rows.iter().map(|r| r.iter().map(String::as_str).collect()).collect();
+    let row_refs: Vec<Vec<&str>> = rows
+        .iter()
+        .map(|r| r.iter().map(String::as_str).collect())
+        .collect();
     let key_refs: Vec<&str> = keys.iter().map(String::as_str).collect();
     render_table(&key_refs, &row_refs)
 }
@@ -290,7 +294,11 @@ fn render_table(headers: &[&str], rows: &[Vec<&str>]) -> String {
         .iter()
         .enumerate()
         .map(|(i, h)| {
-            let max_row = rows.iter().map(|r| r.get(i).map(|s| s.len()).unwrap_or(0)).max().unwrap_or(0);
+            let max_row = rows
+                .iter()
+                .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
+                .max()
+                .unwrap_or(0);
             h.len().max(max_row)
         })
         .collect();
@@ -306,7 +314,11 @@ fn render_table(headers: &[&str], rows: &[Vec<&str>]) -> String {
     );
     let sep = format!(
         "|{}|",
-        widths.iter().map(|w| "-".repeat(w + 2)).collect::<Vec<_>>().join("|")
+        widths
+            .iter()
+            .map(|w| "-".repeat(w + 2))
+            .collect::<Vec<_>>()
+            .join("|")
     );
     let body: Vec<String> = rows
         .iter()

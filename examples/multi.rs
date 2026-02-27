@@ -57,9 +57,7 @@ async fn main() {
                         .boolean()
                         .description("Save as dev dependency"),
                 )
-                .run(|_| {
-                    CommandContext::ok(serde_json::json!({ "added": 1, "packages": 451 }))
-                }),
+                .run(|_| CommandContext::ok(serde_json::json!({ "added": 1, "packages": 451 }))),
         )
         .group(pr)
         .serve()

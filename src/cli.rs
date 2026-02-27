@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 use serde_json::Value;
@@ -7,6 +8,7 @@ use crate::cta::{self, CtaBlock};
 use crate::error::IncurError;
 use crate::formatter::{self, Format};
 use crate::help::{self, CommandEntry, ExampleEntry, FormatCommandOptions, FormatRootOptions};
+use crate::mcp;
 use crate::parser::{self, Arg, Opt, Parsed};
 
 /// The handler function type for a command.
@@ -34,6 +36,11 @@ pub struct CommandContext {
 }
 
 impl CommandContext {
+    /// Creates a new `CommandContext` from parsed data and environment.
+    pub fn new(parsed: Parsed, env: HashMap<String, String>) -> Self {
+        Self { parsed, env }
+    }
+
     /// Gets a positional argument by name.
     pub fn arg<T: std::str::FromStr>(&self, name: &str) -> T
     where
@@ -54,11 +61,7 @@ impl CommandContext {
 
     /// Gets a string argument by name.
     pub fn arg_str(&self, name: &str) -> &str {
-        self.parsed
-            .args
-            .get(name)
-            .map(String::as_str)
-            .unwrap_or("")
+        self.parsed.args.get(name).map(String::as_str).unwrap_or("")
     }
 
     /// Gets an option value by name.
@@ -214,8 +217,29 @@ impl Cli {
         self
     }
 
+    /// Adds a named option (for root commands).
+    pub fn option(mut self, opt: Opt) -> Self {
+        if let Some(cmd) = &mut self.root_command {
+            cmd.options.push(opt);
+        } else {
+            self.root_command = Some(Command {
+                description: None,
+                args: Vec::new(),
+                options: vec![opt],
+                examples: Vec::new(),
+                hint: None,
+                format: None,
+                run: Box::new(|_| CommandResult::Ok(Value::Null)),
+            });
+        }
+        self
+    }
+
     /// Sets the root command handler. Makes this a single-command CLI.
-    pub fn run(mut self, f: impl Fn(CommandContext) -> CommandResult + Send + Sync + 'static) -> Self {
+    pub fn run(
+        mut self,
+        f: impl Fn(CommandContext) -> CommandResult + Send + Sync + 'static,
+    ) -> Self {
         if let Some(cmd) = &mut self.root_command {
             cmd.run = Box::new(f);
         } else {
@@ -295,6 +319,16 @@ impl Cli {
         let exit = opts.exit;
 
         let flags = extract_builtin_flags(&argv);
+
+        // --mcp: start as MCP stdio server
+        if flags.mcp {
+            let (name, version, tools) = self.collect_mcp_tools();
+            if let Err(e) = mcp::serve(name, version, tools).await {
+                eprintln!("MCP server error: {e}");
+                (exit)(1);
+            }
+            return;
+        }
 
         // --version
         if flags.version && !flags.help {
@@ -463,10 +497,7 @@ impl Cli {
             Err(e) => {
                 if human {
                     match &e {
-                        IncurError::Validation {
-                            field_errors,
-                            ..
-                        } => {
+                        IncurError::Validation { field_errors, .. } => {
                             let mut lines = Vec::new();
                             for fe in field_errors {
                                 lines.push(format!(
@@ -639,9 +670,7 @@ impl Cli {
 
     fn resolve(&self, tokens: &[String]) -> Resolved<'_> {
         if tokens.is_empty() {
-            return Resolved::Root {
-                rest: Vec::new(),
-            };
+            return Resolved::Root { rest: Vec::new() };
         }
 
         let first = &tokens[0];
@@ -681,6 +710,34 @@ impl Cli {
         lines.push("## Commands".into());
         collect_llms_md(&self.commands, &self.order, &[], &self.name, &mut lines);
         lines.join("\n")
+    }
+
+    /// Collects all leaf commands as MCP tool entries for the MCP server.
+    pub(crate) fn collect_mcp_tools(self) -> (String, String, Vec<mcp::ToolEntry>) {
+        let name = self.name.clone();
+        let version = self.version.clone().unwrap_or_else(|| "0.0.0".into());
+        let mut tools = Vec::new();
+
+        // Include root command if present
+        if let Some(root_cmd) = self.root_command {
+            let run: Arc<RunFn> = Arc::from(root_cmd.run);
+            let input_schema = mcp::build_input_schema(&root_cmd.args, &root_cmd.options);
+            let tool = mcp::make_tool(
+                name.clone(),
+                root_cmd.description.or_else(|| self.description.clone()),
+                input_schema,
+            );
+            tools.push(mcp::ToolEntry {
+                tool,
+                args: root_cmd.args,
+                options: root_cmd.options,
+                run,
+            });
+        }
+
+        collect_mcp_entries(self.commands, &self.order, &[], &mut tools);
+
+        (name, version, tools)
     }
 }
 
@@ -725,9 +782,7 @@ fn resolve_group<'a>(group: &'a Group, prefix: &str, tokens: &[String]) -> Resol
                 path: format!("{prefix} {next}"),
                 rest: rest.to_vec(),
             },
-            Entry::Group(sub) => {
-                resolve_group(sub, &format!("{prefix} {next}"), rest)
-            }
+            Entry::Group(sub) => resolve_group(sub, &format!("{prefix} {next}"), rest),
         }
     } else {
         Resolved::NotFound {
@@ -737,10 +792,7 @@ fn resolve_group<'a>(group: &'a Group, prefix: &str, tokens: &[String]) -> Resol
     }
 }
 
-fn collect_help_commands(
-    entries: &HashMap<String, Entry>,
-    order: &[String],
-) -> Vec<CommandEntry> {
+fn collect_help_commands(entries: &HashMap<String, Entry>, order: &[String]) -> Vec<CommandEntry> {
     order
         .iter()
         .filter_map(|name| {
@@ -765,7 +817,11 @@ fn collect_manifest(
 ) {
     for name in order {
         if let Some(entry) = entries.get(name) {
-            let path: Vec<&str> = prefix.iter().copied().chain(std::iter::once(name.as_str())).collect();
+            let path: Vec<&str> = prefix
+                .iter()
+                .copied()
+                .chain(std::iter::once(name.as_str()))
+                .collect();
             match entry {
                 Entry::Command(cmd) => {
                     let mut obj = serde_json::json!({
@@ -793,7 +849,11 @@ fn collect_llms_md(
 ) {
     for name in order {
         if let Some(entry) = entries.get(name) {
-            let path: Vec<&str> = prefix.iter().copied().chain(std::iter::once(name.as_str())).collect();
+            let path: Vec<&str> = prefix
+                .iter()
+                .copied()
+                .chain(std::iter::once(name.as_str()))
+                .collect();
             match entry {
                 Entry::Command(cmd) => {
                     let full_name = format!("{cli_name} {}", path.join(" "));
@@ -822,6 +882,39 @@ fn collect_llms_md(
                 }
                 Entry::Group(group) => {
                     collect_llms_md(&group.commands, &group.order, &path, cli_name, lines);
+                }
+            }
+        }
+    }
+}
+
+fn collect_mcp_entries(
+    entries: HashMap<String, Entry>,
+    order: &[String],
+    prefix: &[String],
+    tools: &mut Vec<mcp::ToolEntry>,
+) {
+    // We need to consume the map, but iterate in `order`.
+    // Drain the map into a temporary, then pull entries by order.
+    let mut map = entries;
+    for name in order {
+        if let Some(entry) = map.remove(name) {
+            let mut path = prefix.to_vec();
+            path.push(name.clone());
+            match entry {
+                Entry::Command(cmd) => {
+                    let tool_name = path.join("_");
+                    let input_schema = mcp::build_input_schema(&cmd.args, &cmd.options);
+                    let tool = mcp::make_tool(tool_name, cmd.description, input_schema);
+                    tools.push(mcp::ToolEntry {
+                        tool,
+                        args: cmd.args,
+                        options: cmd.options,
+                        run: Arc::from(cmd.run),
+                    });
+                }
+                Entry::Group(group) => {
+                    collect_mcp_entries(group.commands, &group.order, &path, tools);
                 }
             }
         }
@@ -885,7 +978,10 @@ impl CommandBuilder {
         self
     }
 
-    pub fn run(mut self, f: impl Fn(CommandContext) -> CommandResult + Send + Sync + 'static) -> Self {
+    pub fn run(
+        mut self,
+        f: impl Fn(CommandContext) -> CommandResult + Send + Sync + 'static,
+    ) -> Self {
         self.run = Some(Box::new(f));
         self
     }
@@ -902,6 +998,7 @@ struct BuiltinFlags {
     format: Format,
     format_explicit: bool,
     llms: bool,
+    mcp: bool,
     help: bool,
     version: bool,
     rest: Vec<String>,
@@ -910,6 +1007,7 @@ struct BuiltinFlags {
 fn extract_builtin_flags(argv: &[String]) -> BuiltinFlags {
     let mut verbose = false;
     let mut llms = false;
+    let mut mcp = false;
     let mut help = false;
     let mut version = false;
     let mut format = Format::Toon;
@@ -922,6 +1020,7 @@ fn extract_builtin_flags(argv: &[String]) -> BuiltinFlags {
         match token.as_str() {
             "--verbose" => verbose = true,
             "--llms" => llms = true,
+            "--mcp" => mcp = true,
             "--help" | "-h" => help = true,
             "--version" => version = true,
             "--json" => {
@@ -947,6 +1046,7 @@ fn extract_builtin_flags(argv: &[String]) -> BuiltinFlags {
         format,
         format_explicit,
         llms,
+        mcp,
         help,
         version,
         rest,
@@ -1039,7 +1139,12 @@ mod tests {
                 CommandBuilder::new()
                     .description("Install a package")
                     .arg(Arg::new("package").description("Package name"))
-                    .option(Opt::new("saveDev").short('D').boolean().description("Save as dev dep"))
+                    .option(
+                        Opt::new("saveDev")
+                            .short('D')
+                            .boolean()
+                            .description("Save as dev dep"),
+                    )
                     .run(|_| CommandContext::ok(serde_json::json!({ "added": 1 }))),
             );
 
@@ -1054,9 +1159,9 @@ mod tests {
             .version("1.0.0")
             .command(
                 "status",
-                CommandBuilder::new().description("Show status").run(|_| {
-                    CommandContext::ok(Value::Null)
-                }),
+                CommandBuilder::new()
+                    .description("Show status")
+                    .run(|_| CommandContext::ok(Value::Null)),
             );
 
         let out = capture_cli(cli, vec!["--help"]);
@@ -1069,9 +1174,7 @@ mod tests {
     fn json_format_flag() {
         let cli = Cli::create("test")
             .arg(Arg::new("name").required(true))
-            .run(|ctx| {
-                CommandContext::ok(serde_json::json!({ "name": ctx.arg_str("name") }))
-            });
+            .run(|ctx| CommandContext::ok(serde_json::json!({ "name": ctx.arg_str("name") })));
 
         let out = capture_cli(cli, vec!["--json", "alice"]);
         assert!(out.contains("\"name\": \"alice\""));
