@@ -256,6 +256,20 @@ impl Cli {
         self
     }
 
+    /// Registers a derived struct as a subcommand with its `IncurRun` handler.
+    ///
+    /// ```rust,ignore
+    /// Cli::create("app")
+    ///     .command_run::<Deploy>()
+    ///     .command_run::<Status>()
+    ///     .serve()
+    ///     .await;
+    /// ```
+    pub fn command_run<T: crate::derive_support::IncurRun>(self) -> Self {
+        let builder = T::command_builder().run(|ctx| T::from_context(&ctx).run());
+        self.command(T::cli_name(), builder)
+    }
+
     /// Registers a subcommand.
     pub fn command(mut self, name: impl Into<String>, builder: CommandBuilder) -> Self {
         let name = name.into();
@@ -311,6 +325,22 @@ impl Cli {
     /// Serves with explicit argv (useful for testing).
     pub async fn serve_argv(self, argv: Vec<String>) {
         self.serve_with(argv, ServeOptions::default()).await;
+    }
+
+    /// Serves with explicit argv and a custom stdout writer (for capturing output in tests).
+    pub async fn serve_with_test(
+        self,
+        argv: Vec<String>,
+        stdout: impl Fn(&str) + Send + Sync + 'static,
+    ) {
+        self.serve_with(
+            argv,
+            ServeOptions {
+                stdout: Box::new(stdout),
+                exit: Box::new(|_| {}),
+            },
+        )
+        .await;
     }
 
     /// Internal serve implementation.

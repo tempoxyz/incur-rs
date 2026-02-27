@@ -1,4 +1,4 @@
-use incur::{CommandContext, Incur, IncurCommand};
+use incur::{CommandContext, CommandResult, Incur, IncurRun};
 
 #[derive(Incur)]
 #[incur(name = "deploy", description = "Deploy the app", version = "1.0.0")]
@@ -16,18 +16,18 @@ struct Deploy {
     timeout: f64,
 }
 
+impl IncurRun for Deploy {
+    fn run(self) -> CommandResult {
+        CommandContext::ok(serde_json::json!({
+            "deployed": true,
+            "env": self.env,
+            "force": self.force,
+            "timeout": self.timeout,
+        }))
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    Deploy::cli()
-        .run(|ctx| {
-            let cmd = Deploy::from_context(&ctx);
-            CommandContext::ok(serde_json::json!({
-                "deployed": true,
-                "env": cmd.env,
-                "force": cmd.force,
-                "timeout": cmd.timeout,
-            }))
-        })
-        .serve()
-        .await;
+    Deploy::serve().await;
 }

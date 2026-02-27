@@ -1,4 +1,4 @@
-use crate::cli::{Cli, CommandBuilder, CommandContext};
+use crate::cli::{Cli, CommandBuilder, CommandContext, CommandResult};
 use crate::parser::{Arg, Opt};
 
 /// Trait implemented by `#[derive(Incur)]` for structs that define CLI commands.
@@ -22,6 +22,8 @@ pub trait IncurCommand: Sized {
     fn cli_version() -> Option<&'static str>;
 
     /// Builds a `Cli` configured with this command's args and options.
+    /// Use `.run(...)` to attach a handler, or implement `IncurRun` and
+    /// call `T::serve()` directly.
     fn cli() -> Cli {
         let mut cli = Cli::create(Self::cli_name());
         if let Some(desc) = Self::cli_description() {
@@ -52,5 +54,49 @@ pub trait IncurCommand: Sized {
             builder = builder.option(opt);
         }
         builder
+    }
+}
+
+/// Implement this on a derived struct to define the command handler.
+///
+/// ```rust,ignore
+/// #[derive(Incur)]
+/// #[incur(name = "deploy", description = "Deploy the app")]
+/// struct Deploy {
+///     #[incur(arg, required)]
+///     env: String,
+///     #[incur(option, short = 'f')]
+///     force: bool,
+/// }
+///
+/// impl IncurRun for Deploy {
+///     fn run(self) -> CommandResult {
+///         CommandContext::ok(serde_json::json!({
+///             "deployed": true,
+///             "env": self.env,
+///         }))
+///     }
+/// }
+///
+/// // Single command:
+/// Deploy::serve().await;
+///
+/// // As subcommand:
+/// Cli::create("app")
+///     .command_run::<Deploy>()
+///     .serve()
+///     .await;
+/// ```
+pub trait IncurRun: IncurCommand + Send + Sync + 'static {
+    fn run(self) -> CommandResult;
+
+    /// Serves this command directly as a standalone CLI.
+    fn serve() -> impl std::future::Future<Output = ()> + Send {
+        async {
+            Self::cli()
+                .run(|ctx| Self::from_context(&ctx).run())
+                .serve()
+                .await;
+        }
     }
 }

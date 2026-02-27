@@ -34,7 +34,7 @@ pub mod parser;
 
 pub use cli::{Cli, CommandBuilder, CommandContext, CommandResult, RunFn};
 pub use cta::Cta;
-pub use derive_support::IncurCommand;
+pub use derive_support::{IncurCommand, IncurRun};
 pub use error::{IncurError, IncurResult};
 pub use formatter::Format;
 pub use incur_derive::Incur;
