@@ -27,9 +27,11 @@ pub mod cli;
 pub mod cta;
 pub mod derive_support;
 pub mod error;
+#[cfg(feature = "clap")]
+pub mod from_clap;
 pub mod formatter;
 pub mod help;
-pub(crate) mod mcp;
+pub mod mcp;
 pub mod parser;
 
 pub use cli::{Cli, CommandBuilder, CommandContext, CommandResult, RunFn};
