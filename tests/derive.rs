@@ -17,6 +17,7 @@ struct Deploy {
 }
 
 #[derive(Incur)]
+#[allow(dead_code)]
 struct Minimal {
     #[incur(arg)]
     name: Option<String>,
@@ -24,6 +25,7 @@ struct Minimal {
 
 #[derive(Incur)]
 #[incur(name = "tagged")]
+#[allow(dead_code)]
 struct WithEnum {
     #[incur(option, enum_values = ["dev", "staging", "prod"])]
     env: String,
@@ -31,6 +33,7 @@ struct WithEnum {
 
 #[derive(Incur)]
 #[incur(name = "arrays")]
+#[allow(dead_code)]
 struct WithArray {
     #[incur(option)]
     tags: Vec<String>,

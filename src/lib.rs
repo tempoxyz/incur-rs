@@ -27,9 +27,9 @@ pub mod cli;
 pub mod cta;
 pub mod derive_support;
 pub mod error;
+pub mod formatter;
 #[cfg(feature = "clap")]
 pub mod from_clap;
-pub mod formatter;
 pub mod help;
 pub mod mcp;
 pub mod parser;

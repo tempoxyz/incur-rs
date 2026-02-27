@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -49,9 +50,9 @@ impl CommandContext {
         self.parsed
             .args
             .get(name)
-            .expect(&format!("missing arg: {name}"))
+            .unwrap_or_else(|| panic!("missing arg: {name}"))
             .parse()
-            .expect(&format!("failed to parse arg: {name}"))
+            .unwrap_or_else(|_| panic!("failed to parse arg: {name}"))
     }
 
     /// Gets a positional argument by name, returning None if missing.
@@ -331,11 +332,12 @@ impl Cli {
         }
 
         // --version
-        if flags.version && !flags.help {
-            if let Some(ver) = &self.version {
-                writeln_fn(&stdout, ver);
-                return;
-            }
+        if flags.version
+            && !flags.help
+            && let Some(ver) = &self.version
+        {
+            writeln_fn(&stdout, ver);
+            return;
         }
 
         // --llms: output manifest (check before help/empty-args fallback)
@@ -447,7 +449,7 @@ impl Cli {
                 order,
             } => {
                 let full_name = format!("{} {path}", self.name);
-                let cmds = collect_help_commands(&entries, &order);
+                let cmds = collect_help_commands(entries, order);
                 writeln_fn(
                     &stdout,
                     &help::format_root(
@@ -1029,7 +1031,7 @@ fn extract_builtin_flags(argv: &[String]) -> BuiltinFlags {
             }
             "--format" => {
                 if let Some(next) = argv.get(i + 1) {
-                    if let Some(f) = Format::from_str(next) {
+                    if let Ok(f) = Format::from_str(next) {
                         format = f;
                         format_explicit = true;
                     }

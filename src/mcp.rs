@@ -13,7 +13,7 @@ use crate::cli::{CommandContext, CommandResult, RunFn};
 use crate::parser::{self, Arg, Opt, OptType};
 
 /// Metadata for a single MCP tool backed by an incur command.
-pub(crate) struct ToolEntry {
+pub struct ToolEntry {
     pub tool: Tool,
     pub args: Vec<Arg>,
     pub options: Vec<Opt>,
@@ -40,11 +40,11 @@ impl IncurMcpServer {
 impl ServerHandler for IncurMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
-            instructions: Some(format!("{} MCP server", self.name).into()),
+            instructions: Some(format!("{} MCP server", self.name)),
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
-                name: self.name.clone().into(),
-                version: self.version.clone().into(),
+                name: self.name.clone(),
+                version: self.version.clone(),
                 ..Default::default()
             },
             ..Default::default()
@@ -66,95 +66,91 @@ impl ServerHandler for IncurMcpServer {
         }
     }
 
-    fn call_tool(
+    async fn call_tool(
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> impl Future<Output = Result<CallToolResult, McpError>> + Send + '_ {
-        async move {
-            let tool_name = request.name.as_ref();
-            let entry = self
-                .tools
-                .iter()
-                .find(|t| t.tool.name.as_ref() == tool_name)
-                .ok_or_else(|| {
-                    McpError::invalid_params(format!("unknown tool: {tool_name}"), None)
-                })?;
+    ) -> Result<CallToolResult, McpError> {
+        let tool_name = request.name.as_ref();
+        let entry = self
+            .tools
+            .iter()
+            .find(|t| t.tool.name.as_ref() == tool_name)
+            .ok_or_else(|| McpError::invalid_params(format!("unknown tool: {tool_name}"), None))?;
 
-            let arguments = request.arguments.unwrap_or_default();
+        let arguments = request.arguments.unwrap_or_default();
 
-            // Split flat JSON params back into positional args and named options
-            let mut argv: Vec<String> = Vec::new();
+        // Split flat JSON params back into positional args and named options
+        let mut argv: Vec<String> = Vec::new();
 
-            // Positional args: extract in order from the schema
-            for arg in &entry.args {
-                if let Some(val) = arguments.get(&arg.name) {
-                    argv.push(json_value_to_string(val));
-                }
+        // Positional args: extract in order from the schema
+        for arg in &entry.args {
+            if let Some(val) = arguments.get(&arg.name) {
+                argv.push(json_value_to_string(val));
             }
+        }
 
-            // Named options: convert to --flag value pairs
-            for opt in &entry.options {
-                if let Some(val) = arguments.get(&opt.name) {
-                    let kebab = parser::to_kebab(&opt.name);
-                    match opt.opt_type {
-                        OptType::Bool => {
-                            if val.as_bool().unwrap_or(false) {
-                                argv.push(format!("--{kebab}"));
-                            }
-                        }
-                        OptType::Array => {
-                            if let Some(arr) = val.as_array() {
-                                for item in arr {
-                                    argv.push(format!("--{kebab}"));
-                                    argv.push(json_value_to_string(item));
-                                }
-                            }
-                        }
-                        _ => {
+        // Named options: convert to --flag value pairs
+        for opt in &entry.options {
+            if let Some(val) = arguments.get(&opt.name) {
+                let kebab = parser::to_kebab(&opt.name);
+                match opt.opt_type {
+                    OptType::Bool => {
+                        if val.as_bool().unwrap_or(false) {
                             argv.push(format!("--{kebab}"));
-                            argv.push(json_value_to_string(val));
                         }
+                    }
+                    OptType::Array => {
+                        if let Some(arr) = val.as_array() {
+                            for item in arr {
+                                argv.push(format!("--{kebab}"));
+                                argv.push(json_value_to_string(item));
+                            }
+                        }
+                    }
+                    _ => {
+                        argv.push(format!("--{kebab}"));
+                        argv.push(json_value_to_string(val));
                     }
                 }
             }
+        }
 
-            // Parse using the existing parser
-            let parsed = parser::parse(&argv, &entry.args, &entry.options)
-                .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+        // Parse using the existing parser
+        let parsed = parser::parse(&argv, &entry.args, &entry.options)
+            .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
 
-            let ctx = CommandContext::new(parsed, HashMap::new());
-            let result = (entry.run)(ctx);
+        let ctx = CommandContext::new(parsed, HashMap::new());
+        let result = (entry.run)(ctx);
 
-            match result {
-                CommandResult::Ok(data) => Ok(CallToolResult {
-                    content: vec![Content::text(
-                        serde_json::to_string(&data).unwrap_or_default(),
-                    )],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
-                CommandResult::OkWith { data, .. } => Ok(CallToolResult {
-                    content: vec![Content::text(
-                        serde_json::to_string(&data).unwrap_or_default(),
-                    )],
-                    structured_content: None,
-                    is_error: Some(false),
-                    meta: None,
-                }),
-                CommandResult::Err { code, message, .. } => Ok(CallToolResult {
-                    content: vec![Content::text(
-                        serde_json::to_string(&serde_json::json!({
-                            "error": { "code": code, "message": message }
-                        }))
-                        .unwrap_or_default(),
-                    )],
-                    structured_content: None,
-                    is_error: Some(true),
-                    meta: None,
-                }),
-            }
+        match result {
+            CommandResult::Ok(data) => Ok(CallToolResult {
+                content: vec![Content::text(
+                    serde_json::to_string(&data).unwrap_or_default(),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+            CommandResult::OkWith { data, .. } => Ok(CallToolResult {
+                content: vec![Content::text(
+                    serde_json::to_string(&data).unwrap_or_default(),
+                )],
+                structured_content: None,
+                is_error: Some(false),
+                meta: None,
+            }),
+            CommandResult::Err { code, message, .. } => Ok(CallToolResult {
+                content: vec![Content::text(
+                    serde_json::to_string(&serde_json::json!({
+                        "error": { "code": code, "message": message }
+                    }))
+                    .unwrap_or_default(),
+                )],
+                structured_content: None,
+                is_error: Some(true),
+                meta: None,
+            }),
         }
     }
 }
@@ -249,7 +245,7 @@ pub(crate) fn make_tool(
     Tool {
         name: Cow::Owned(name),
         title: None,
-        description: description.map(|d| Cow::Owned(d)),
+        description: description.map(Cow::Owned),
         input_schema,
         output_schema: None,
         annotations: None,

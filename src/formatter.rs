@@ -10,15 +10,17 @@ pub enum Format {
     Jsonl,
 }
 
-impl Format {
-    pub fn from_str(s: &str) -> Option<Self> {
+impl std::str::FromStr for Format {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "toon" => Some(Self::Toon),
-            "json" => Some(Self::Json),
-            "yaml" => Some(Self::Yaml),
-            "md" => Some(Self::Md),
-            "jsonl" => Some(Self::Jsonl),
-            _ => None,
+            "toon" => Ok(Self::Toon),
+            "json" => Ok(Self::Json),
+            "yaml" => Ok(Self::Yaml),
+            "md" => Ok(Self::Md),
+            "jsonl" => Ok(Self::Jsonl),
+            _ => Err(()),
         }
     }
 }
@@ -186,7 +188,7 @@ fn format_markdown(value: &Value, path: &[&str]) -> String {
             }
         }
         Value::Object(obj) => {
-            if path.is_empty() && obj.values().all(|v| is_scalar(v)) {
+            if path.is_empty() && obj.values().all(is_scalar) {
                 return kv_table(obj);
             }
             let sections: Vec<String> = obj
@@ -207,7 +209,7 @@ fn format_markdown(value: &Value, path: &[&str]) -> String {
                             format_markdown(val, &child_path)
                         }
                     } else if let Value::Object(nested) = val {
-                        if nested.values().all(|v| is_scalar(v)) {
+                        if nested.values().all(is_scalar) {
                             format!("## {}\n\n{}", child_path.join("."), kv_table(nested))
                         } else {
                             format_markdown(val, &child_path)

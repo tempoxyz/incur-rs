@@ -262,8 +262,7 @@ pub fn parse(
             }
             raw_options.insert(name, Value::Bool(false));
             i += 1;
-        } else if token.starts_with("--") {
-            let rest = &token[2..];
+        } else if let Some(rest) = token.strip_prefix("--") {
             if let Some(eq_idx) = rest.find('=') {
                 let raw = &rest[..eq_idx];
                 let val = &rest[eq_idx + 1..];
@@ -347,11 +346,11 @@ pub fn parse(
 
     // Apply defaults for missing options
     for opt in opts_schema {
-        if !raw_options.contains_key(&opt.name) {
-            if let Some(default) = &opt.default {
-                let val = coerce(default, opt.opt_type);
-                raw_options.insert(opt.name.clone(), val);
-            }
+        if !raw_options.contains_key(&opt.name)
+            && let Some(default) = &opt.default
+        {
+            let val = coerce(default, opt.opt_type);
+            raw_options.insert(opt.name.clone(), val);
         }
     }
 
@@ -372,25 +371,24 @@ pub fn parse(
 
     // Validate enum values
     for opt in opts_schema {
-        if !opt.enum_values.is_empty() {
-            if let Some(Value::String(val)) = raw_options.get(&opt.name) {
-                if !opt.enum_values.contains(val) {
-                    return Err(IncurError::Validation {
-                        message: format!(
-                            "invalid value '{}' for --{}. Expected one of: {}",
-                            val,
-                            to_kebab(&opt.name),
-                            opt.enum_values.join(", ")
-                        ),
-                        field_errors: vec![FieldError {
-                            path: opt.name.clone(),
-                            expected: opt.enum_values.join(" | "),
-                            received: val.clone(),
-                            message: format!("Invalid value for '{}'", opt.name),
-                        }],
-                    });
-                }
-            }
+        if !opt.enum_values.is_empty()
+            && let Some(Value::String(val)) = raw_options.get(&opt.name)
+            && !opt.enum_values.contains(val)
+        {
+            return Err(IncurError::Validation {
+                message: format!(
+                    "invalid value '{}' for --{}. Expected one of: {}",
+                    val,
+                    to_kebab(&opt.name),
+                    opt.enum_values.join(", ")
+                ),
+                field_errors: vec![FieldError {
+                    path: opt.name.clone(),
+                    expected: opt.enum_values.join(" | "),
+                    received: val.clone(),
+                    message: format!("Invalid value for '{}'", opt.name),
+                }],
+            });
         }
     }
 
