@@ -35,20 +35,14 @@ pub fn tools_from_clap(cmd: &clap::Command) -> Vec<ToolEntry> {
 /// Returns the CLI name and version extracted from a `clap::Command`.
 pub fn cli_meta(cmd: &clap::Command) -> (String, String) {
     let name = cmd.get_name().to_string();
-    let version = cmd
-        .get_version()
-        .unwrap_or("0.0.0")
-        .to_string();
+    let version = cmd.get_version().unwrap_or("0.0.0").to_string();
     (name, version)
 }
 
 /// Recursively walk the command tree. Leaf commands (those with no
 /// subcommands, or whose subcommands are all hidden) produce tool entries.
 fn collect_leaves(cmd: &clap::Command, path: &[&str], out: &mut Vec<ToolEntry>) {
-    let subs: Vec<_> = cmd
-        .get_subcommands()
-        .filter(|s| !s.is_hide_set())
-        .collect();
+    let subs: Vec<_> = cmd.get_subcommands().filter(|s| !s.is_hide_set()).collect();
 
     if subs.is_empty() {
         // Leaf command — register as a tool.
@@ -131,9 +125,7 @@ fn make_tool_entry(cmd: &clap::Command, path: &[&str]) -> ToolEntry {
 
             // Spawn the current exe.
             let exe = env::current_exe().unwrap_or_else(|_| "forge".into());
-            let output = std::process::Command::new(&exe)
-                .args(&argv)
-                .output();
+            let output = std::process::Command::new(&exe).args(&argv).output();
 
             match output {
                 Ok(out) => {
@@ -150,11 +142,7 @@ fn make_tool_entry(cmd: &clap::Command, path: &[&str]) -> ToolEntry {
                     } else {
                         CommandResult::Err {
                             code: format!("exit_{code}"),
-                            message: if stderr.is_empty() {
-                                stdout
-                            } else {
-                                stderr
-                            },
+                            message: if stderr.is_empty() { stdout } else { stderr },
                             retryable: false,
                             cta: None,
                         }
@@ -311,10 +299,7 @@ pub fn intercept<C: clap::CommandFactory>() {
 /// their descriptions and arguments, suitable for LLM consumption.
 pub fn llms_manifest(cmd: &clap::Command) -> String {
     let name = cmd.get_name();
-    let desc = cmd
-        .get_about()
-        .map(|s| s.to_string())
-        .unwrap_or_default();
+    let desc = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
     let version = cmd.get_version().unwrap_or("0.0.0");
 
     let mut lines = vec![
@@ -349,17 +334,11 @@ fn collect_manifest_entries(
     path: &[&str],
     out: &mut Vec<(String, String, String)>,
 ) {
-    let subs: Vec<_> = cmd
-        .get_subcommands()
-        .filter(|s| !s.is_hide_set())
-        .collect();
+    let subs: Vec<_> = cmd.get_subcommands().filter(|s| !s.is_hide_set()).collect();
 
     if subs.is_empty() && !path.is_empty() {
         let full_path = path.join(" ");
-        let about = cmd
-            .get_about()
-            .map(|s| s.to_string())
-            .unwrap_or_default();
+        let about = cmd.get_about().map(|s| s.to_string()).unwrap_or_default();
 
         // Build a concise usage string.
         let mut usage_parts = vec![full_path.clone()];
@@ -403,11 +382,7 @@ mod tests {
             .subcommand(
                 clap::Command::new("build")
                     .about("Build the project")
-                    .arg(
-                        clap::Arg::new("target")
-                            .help("Build target")
-                            .required(true),
-                    )
+                    .arg(clap::Arg::new("target").help("Build target").required(true))
                     .arg(
                         clap::Arg::new("release")
                             .long("release")
@@ -419,10 +394,7 @@ mod tests {
             .subcommand(
                 clap::Command::new("test")
                     .about("Run tests")
-                    .arg(
-                        clap::Arg::new("filter")
-                            .help("Test name filter"),
-                    )
+                    .arg(clap::Arg::new("filter").help("Test name filter"))
                     .arg(
                         clap::Arg::new("jobs")
                             .long("jobs")
@@ -434,24 +406,18 @@ mod tests {
                 clap::Command::new("pr")
                     .about("PR commands")
                     .subcommand(
-                        clap::Command::new("list")
-                            .about("List PRs")
-                            .arg(
-                                clap::Arg::new("state")
-                                    .long("state")
-                                    .help("Filter by state")
-                                    .value_parser(["open", "closed", "all"])
-                                    .default_value("open"),
-                            ),
+                        clap::Command::new("list").about("List PRs").arg(
+                            clap::Arg::new("state")
+                                .long("state")
+                                .help("Filter by state")
+                                .value_parser(["open", "closed", "all"])
+                                .default_value("open"),
+                        ),
                     )
                     .subcommand(
                         clap::Command::new("create")
                             .about("Create a PR")
-                            .arg(
-                                clap::Arg::new("title")
-                                    .help("PR title")
-                                    .required(true),
-                            ),
+                            .arg(clap::Arg::new("title").help("PR title").required(true)),
                     ),
             )
     }

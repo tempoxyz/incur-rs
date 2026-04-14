@@ -11,8 +11,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use figment::providers::{Format, Serialized, Toml};
 use figment::Figment;
+use figment::providers::{Format, Serialized, Toml};
 use serde::{Deserialize, Serialize};
 
 use crate::parser::{Opt, OptType, Value};
@@ -58,11 +58,7 @@ fn env_key_to_option_name(key: &str) -> String {
 /// 4. Explicit env vars from `Opt::env` (per-option)
 ///
 /// CLI arguments are NOT included here — they override during parsing.
-pub fn build_figment(
-    opts: &[Opt],
-    config_file: Option<&str>,
-    env_prefix: Option<&str>,
-) -> Figment {
+pub fn build_figment(opts: &[Opt], config_file: Option<&str>, env_prefix: Option<&str>) -> Figment {
     // Layer 1: Code defaults
     let mut defaults = HashMap::new();
     for opt in opts {
@@ -73,7 +69,9 @@ pub fn build_figment(
     let mut figment = Figment::new().merge(Serialized::defaults(&defaults));
 
     // Layer 2: TOML config file
-    if let Some(file_name) = config_file && let Some(path) = discover_file(file_name) {
+    if let Some(file_name) = config_file
+        && let Some(path) = discover_file(file_name)
+    {
         figment = figment.merge(Toml::file(path));
     }
 
@@ -85,7 +83,9 @@ pub fn build_figment(
         // Read env vars manually and inject via Serialized so we control key names.
         let prefix_underscore = format!("{prefix}_");
         for (key, val) in std::env::vars() {
-            if let Some(rest) = key.strip_prefix(&prefix_underscore) && !rest.is_empty() {
+            if let Some(rest) = key.strip_prefix(&prefix_underscore)
+                && !rest.is_empty()
+            {
                 let option_name = env_key_to_option_name(rest);
                 figment = figment.merge(Serialized::default(&option_name, &val));
             }
@@ -94,7 +94,9 @@ pub fn build_figment(
 
     // Layer 4: Explicit env vars per-option (e.g., Opt::env("MY_API_KEY"))
     for opt in opts {
-        if let Some(ref env_var) = opt.env && let Ok(val) = std::env::var(env_var) {
+        if let Some(ref env_var) = opt.env
+            && let Ok(val) = std::env::var(env_var)
+        {
             figment = figment.merge(Serialized::default(&opt.name, &val));
         }
     }
@@ -115,9 +117,7 @@ pub fn apply_waterfall(
     let figment = build_figment(opts, config_file, env_prefix);
 
     // Extract as a flat string map — figment handles the merge precedence
-    let resolved: HashMap<String, FigmentValue> = figment
-        .extract()
-        .unwrap_or_default();
+    let resolved: HashMap<String, FigmentValue> = figment.extract().unwrap_or_default();
 
     opts.iter()
         .map(|opt| {
@@ -189,13 +189,17 @@ pub fn merge_resolved(
     let mut result = HashMap::new();
     for opt in opts {
         if let Some(val) = resolved.get(&opt.name) {
-            result.insert(opt.name.clone(), coerce(&val.to_string_value(), opt.opt_type));
+            result.insert(
+                opt.name.clone(),
+                coerce(&val.to_string_value(), opt.opt_type),
+            );
         }
     }
     result
 }
 
 #[cfg(test)]
+#[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
 

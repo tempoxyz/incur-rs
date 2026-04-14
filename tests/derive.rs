@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use incur::{CommandContext, Incur, IncurCommand};
 
 #[derive(Incur)]
