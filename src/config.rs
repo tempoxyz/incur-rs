@@ -199,6 +199,7 @@ pub fn merge_resolved(
 }
 
 #[cfg(test)]
+#[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
 
